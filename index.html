@@ -484,7 +484,7 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 let notes = {};  // populated from Supabase on login
 let activeNote = null;
 let activeTagFilter = null;
-let kanban = lsGet('sv-kanban') || defKanban();
+let kanban = lsGet('sv-kanban') || {cols:[{id:'ideas',name:'💡 Idées',col:'#a78bfa',cards:[]},{id:'prog',name:'⚡ En cours',col:'#a855f7',cards:[]},{id:'review',name:'🔍 À tester',col:'#fbbf24',cards:[]},{id:'done',name:'✅ Terminé',col:'#4ade80',cards:[]}]};
 let dragId = null, dragFrom = null;
 let gNodes = [], gEdges = [], gAnim = null, gDragging = null;
 
@@ -804,205 +804,8 @@ document.addEventListener('click',e=>{
 });
 
 // ── DEMO NOTES ────────────────────────────────────────────────────
-function loadDemo(){
-  const demos={
-'Project Starfall - Overview':`---
-title: Project Starfall - Overview
-status: En développement
----
-
-# Project: Starfall
-
-Un jeu Roblox sci-fi avec une esthétique **Star Wars Battlefront II** et Jedi Survivor.
-
-## Vision
-
-Créer une expérience immersive avec des combats au sabre laser, des environnements holographiques et un lore riche autour de l'Ordre des Gardiens.
-
-## Liens
-
-- [[Systèmes de jeu]]
-- [[UI Design System]]
-- [[Lore & Factions]]
-- [[Audio - Lightsaber SFX]]
-
-## Progression globale
-
-- [x] Architecture de base
-- [x] UI holographique
-- [x] Système de RemoteEvents
-- [ ] Système de combat au sabre
-- [ ] Map principale : Station Orbitale Nexus
-- [ ] Animations de combat R15
-
-#starfall #roblox #gamedev #kanban`,
-
-'Systèmes de jeu':`---
-title: Systèmes de jeu
-status: En cours
----
-
-# Systèmes de jeu
-
-## DataStore
-
-Utilisation de snapshots pour éviter les \`SetAsync\` inutiles. Seule la différence est envoyée.
-
-\`\`\`lua
-local function save(player, data)
-  local key = "player_" .. player.UserId
-  DataStore:SetAsync(key, data)
-end
-\`\`\`
-
-## RemoteEvents
-
-Architecture client/serveur propre. Toujours valider côté serveur.
-
-> Ne jamais faire confiance au client — tout doit être validé serveur.
-
-## Système de combat
-
-- [ ] Détection de hit (hitbox R15)
-- [ ] VFX sabre laser
-- [ ] Cooldown et stamina
-
-## Liens
-
-- [[Project Starfall - Overview]]
-- [[UI Design System]]
-
-#starfall #luau #datastores #combat`,
-
-'UI Design System':`---
-title: UI Design System
-status: Défini
----
-
-# UI Design System
-
-Esthétique holographique sombre pour Project: Starfall.
-
-## Palette de couleurs
-
-- **Background** : \`#07090f\` — bleu nuit très profond
-- **Accent principal** : \`#a855f7\` — cyan holographique
-- **Cards** : \`#131b2e\`
-- **Texte secondaire** : \`#94a3b8\`
-
-## Typographie
-
-- Display : **Space Grotesk** (titres, logos)
-- Body : **Inter** (textes courants)
-- Code : **JetBrains Mono**
-
-## Composants
-
-- [x] Login screen
-- [x] HUD principal
-- [x] Icônes (54 générées)
-- [ ] Inventory panel
-- [ ] Map overlay holographique
-
-#starfall #ui #design`,
-
-'Lore & Factions':`---
-title: Lore & Factions
-status: En cours
----
-
-# Lore & Factions
-
-## L'univers
-
-Starfall se déroule dans un système stellaire en guerre froide entre trois factions après l'effondrement de l'Empire Solaris.
-
-## Factions
-
-### Les Gardiens de la Lumière
-Anciens protecteurs de l'Empire. Utilisent des sabres à lame cyan.
-
-### L'Ordre Écarlate
-Dissidents rebelles. Lames rouges, esthétique industrielle.
-
-### Les Marchands du Vide
-Neutres, intéressés. Accès à toutes les technologies.
-
-## Planètes
-
-- **Nexus Station** — station orbitale, zone de départ
-- **Ashenveil** — planète couverte de forêts cristallines
-- **Korrath** — désert de métal
-
-## Liens
-
-- [[Project Starfall - Overview]]
-
-#starfall #lore #worldbuilding`,
-
-'Audio - Lightsaber SFX':`---
-title: Audio - Lightsaber SFX
-status: Organisé
----
-
-# Audio - Lightsaber SFX
-
-## Catégories
-
-### Idle / Hum
-Sons continus pendant que le sabre est actif.
-- hum_low_01.mp3 → Gardiens
-- hum_high_02.mp3 → Ordre Écarlate
-
-### Swing
-- swing_fast_01.mp3
-- swing_slow_02.mp3
-
-### Clash
-Sons de collision entre sabres.
-- clash_heavy_01.mp3
-- clash_light_02.mp3
-
-### Activation / Désactivation
-- ignite_01.mp3
-- extinguish_01.mp3
-
-## Notes d'implémentation
-
-\`\`\`lua
-local SFX = game.SoundService
--- Jouer le son d'activation
-local function igniteSaber(player)
-  SFX:PlayLocalSound(Assets.Sounds.ignite_01)
-end
-\`\`\`
-
-#starfall #audio #assets`,
-  };
-  Object.entries(demos).forEach(([n,c])=>{notes[n]=parseNote(n,c);});
-  renderSidebar();
-  buildGraph();
-}
 
 // ── KANBAN ────────────────────────────────────────────────────────
-function defKanban(){return{cols:[
-  {id:'ideas',name:'💡 Idées',col:'#a78bfa',cards:[
-    {id:'c1',title:'Système de sabre laser',desc:'Hit detection + VFX holographiques',tags:['combat','vfx']},
-    {id:'c2',title:'Map : Station Orbitale Nexus',desc:'Layout + liste d\'assets',tags:['map','design']},
-    {id:'c3',title:'Animations combat R15',desc:'Mixamo → Roblox workflow',tags:['animation']},
-  ]},
-  {id:'prog',name:'⚡ En cours',col:'#c084fc',cards:[
-    {id:'c4',title:'UI HUD principal',desc:'Health, stamina, minimap',tags:['ui']},
-    {id:'c5',title:'DataStore refactor',desc:'Migration vers snapshot pattern',tags:['luau']},
-  ]},
-  {id:'review',name:'🔍 À tester',col:'#fbbf24',cards:[
-    {id:'c6',title:'Login screen',desc:'Test sur mobile Roblox',tags:['ui','mobile']},
-  ]},
-  {id:'done',name:'✅ Terminé',col:'#4ade80',cards:[
-    {id:'c7',title:'Architecture RemoteEvents',desc:'Client/server validé',tags:['luau']},
-    {id:'c8',title:'Icon set holographique',desc:'54 icônes générées',tags:['assets','ui']},
-  ]},
-]};}
 
 function lsGet(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}}
 function lsSave(){localStorage.setItem('sv-kanban',JSON.stringify(kanban));}
@@ -1126,106 +929,163 @@ document.getElementById('card-overlay').addEventListener('click',e=>{if(e.target
 function buildGraph(){
   gNodes=[]; gEdges=[];
   const ns=Object.values(notes);
-  if(!ns.length)return;
-  const cx=400, cy=300, r=180;
+  if(!ns.length){document.getElementById('gstats').textContent='Aucune note chargée';return;}
+  const canvas=document.getElementById('gcanvas');
+  const W=canvas.offsetWidth||800, H=canvas.offsetHeight||600;
+  // Place nodes in a grid/circle layout — no physics on large sets
+  const count=ns.length;
+  const cols=Math.ceil(Math.sqrt(count*1.6));
+  const rows=Math.ceil(count/cols);
+  const cellW=Math.min(W/cols, 160), cellH=Math.min(H/rows, 100);
   ns.forEach((n,i)=>{
-    const a=(i/ns.length)*Math.PI*2;
-    gNodes.push({id:n.name,x:cx+Math.cos(a)*r*(0.5+Math.random()*.5),y:cy+Math.sin(a)*r*(0.5+Math.random()*.5),vx:0,vy:0,type:'note',tags:n.tags});
+    const col=i%cols, row=Math.floor(i/cols);
+    const jitter=(Math.random()-.5)*cellW*.3;
+    gNodes.push({
+      id:n.name,
+      x: cellW*.5 + col*cellW + jitter,
+      y: cellH*.5 + row*cellH + (Math.random()-.5)*cellH*.3,
+      tags:n.tags,
+      linkCount:0
+    });
     n.links.forEach(t=>{if(notes[t])gEdges.push({from:n.name,to:t});});
   });
-  document.getElementById('gstats').textContent=`${ns.length} notes · ${gEdges.length} liens`;
+  // Count links per node for sizing
+  gEdges.forEach(e=>{
+    const a=gNodes.find(n=>n.id===e.from);
+    const b=gNodes.find(n=>n.id===e.to);
+    if(a)a.linkCount++;
+    if(b)b.linkCount++;
+  });
+  document.getElementById('gstats').textContent=`${count} notes · ${gEdges.length} liens`;
 }
 
 function renderGraph(){
   const canvas=document.getElementById('gcanvas');
   const ctx=canvas.getContext('2d');
   canvas.width=canvas.offsetWidth; canvas.height=canvas.offsetHeight;
-  if(!gNodes.length){
-    ctx.fillStyle='#64748b'; ctx.font='14px Inter'; ctx.textAlign='center';
-    ctx.fillText('Charge des notes pour voir le graph',canvas.width/2,canvas.height/2); return;
-  }
   if(gAnim)cancelAnimationFrame(gAnim);
-  let tick=0;
-  const cx=canvas.width/2, cy=canvas.height/2;
-  // center nodes
-  gNodes.forEach(n=>{n.x+=cx-400; n.y+=cy-300;});
 
-  // Mouse hover
+  if(!gNodes.length){
+    ctx.fillStyle='#64748b';ctx.font='14px Inter';ctx.textAlign='center';
+    ctx.fillText('Charge un vault pour voir le graph',canvas.width/2,canvas.height/2);
+    return;
+  }
+
+  // Scale nodes to canvas
+  const xs=gNodes.map(n=>n.x), ys=gNodes.map(n=>n.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const pad=60;
+  const scaleX=(canvas.width-pad*2)/Math.max(maxX-minX,1);
+  const scaleY=(canvas.height-pad*2)/Math.max(maxY-minY,1);
+  const scale=Math.min(scaleX,scaleY,.9);
+  gNodes.forEach(n=>{
+    n.sx=pad+(n.x-minX)*scale;
+    n.sy=pad+(n.y-minY)*scale;
+  });
+
   let hovered=null;
+  // Pan/zoom state
+  let offsetX=0,offsetY=0,zoom=1;
+  let isPanning=false,lastPan={x:0,y:0};
+
+  canvas.onmousedown=e=>{isPanning=true;lastPan={x:e.clientX,y:e.clientY};};
+  canvas.onmouseup=()=>{isPanning=false;};
+  canvas.onmouseleave=()=>{isPanning=false;hovered=null;};
+  canvas.onwheel=e=>{
+    e.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const delta=e.deltaY>0?.9:1.1;
+    offsetX=(offsetX-mx)*delta+mx;
+    offsetY=(offsetY-my)*delta+my;
+    zoom*=delta;
+    zoom=Math.max(.2,Math.min(5,zoom));
+  };
   canvas.onmousemove=e=>{
     const rect=canvas.getBoundingClientRect();
     const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    hovered=gNodes.find(n=>Math.hypot(n.x-mx,n.y-my)<16)||null;
-    const tip=document.getElementById('g-tooltip');
-    if(hovered){tip.style.display='block';tip.style.left=(e.clientX-rect.left+12)+'px';tip.style.top=(e.clientY-rect.top-10)+'px';tip.textContent=hovered.id;}
-    else tip.style.display='none';
+    if(isPanning){
+      offsetX+=e.clientX-lastPan.x; offsetY+=e.clientY-lastPan.y;
+      lastPan={x:e.clientX,y:e.clientY};
+    } else {
+      // Transform mouse to canvas space
+      const tx=(mx-offsetX)/zoom, ty=(my-offsetY)/zoom;
+      hovered=gNodes.find(n=>Math.hypot(n.sx-tx,n.sy-ty)<nodeR(n))||null;
+      const tip=document.getElementById('g-tooltip');
+      if(hovered){tip.style.display='block';tip.style.left=(mx+12)+'px';tip.style.top=(my-10)+'px';tip.textContent=hovered.id+(hovered.linkCount?` (${hovered.linkCount} liens)`:'');}
+      else tip.style.display='none';
+    }
   };
   canvas.onclick=e=>{
-    const rect=canvas.getBoundingClientRect();
-    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    const hit=gNodes.find(n=>Math.hypot(n.x-mx,n.y-my)<16);
-    if(hit&&notes[hit.id]){openNote(hit.id);goView('vault');}
+    if(!hovered)return;
+    if(notes[hovered.id]){openNote(hovered.id);goView('vault');}
   };
 
-  function sim(){
-    gNodes.forEach(n=>{n.vx*=.85; n.vy*=.85;});
-    for(let i=0;i<gNodes.length;i++){
-      for(let j=i+1;j<gNodes.length;j++){
-        const a=gNodes[i], b=gNodes[j];
-        const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1;
-        const f=-1800/(d*d);
-        a.vx+=f*dx/d; a.vy+=f*dy/d;
-        b.vx-=f*dx/d; b.vy-=f*dy/d;
-      }
-    }
-    gEdges.forEach(e=>{
-      const a=gNodes.find(n=>n.id===e.from), b=gNodes.find(n=>n.id===e.to);
-      if(!a||!b)return;
-      const dx=b.x-a.x, dy=b.y-a.y, d=Math.sqrt(dx*dx+dy*dy)||1;
-      const f=(d-140)*.025;
-      const fx=f*dx/d, fy=f*dy/d;
-      a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy;
-    });
-    gNodes.forEach(n=>{
-      n.x=Math.max(50,Math.min(canvas.width-50,n.x+n.vx));
-      n.y=Math.max(50,Math.min(canvas.height-50,n.y+n.vy));
-    });
-  }
+  // Touch pan
+  let lastTouch=null;
+  canvas.ontouchstart=e=>{lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};};
+  canvas.ontouchmove=e=>{
+    e.preventDefault();
+    if(!lastTouch)return;
+    offsetX+=e.touches[0].clientX-lastTouch.x;
+    offsetY+=e.touches[0].clientY-lastTouch.y;
+    lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  };
+
+  function nodeR(n){return Math.max(6,Math.min(14,7+n.linkCount*1.5));}
+
+  const MAX_EDGES=300; // cap edges drawn for perf
+  const visibleEdges=gEdges.length>MAX_EDGES ? gEdges.filter((_,i)=>i%Math.ceil(gEdges.length/MAX_EDGES)===0) : gEdges;
 
   function draw(){
-    if(tick<100){sim();tick++;}
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save();
+    ctx.translate(offsetX,offsetY);
+    ctx.scale(zoom,zoom);
+
     // Edges
-    gEdges.forEach(e=>{
+    ctx.lineWidth=.8/zoom;
+    visibleEdges.forEach(e=>{
       const a=gNodes.find(n=>n.id===e.from), b=gNodes.find(n=>n.id===e.to);
       if(!a||!b)return;
       const isHov=hovered&&(hovered.id===a.id||hovered.id===b.id);
-      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
-      ctx.strokeStyle=isHov?'rgba(168,85,247,.6)':'rgba(168,85,247,.15)';
-      ctx.lineWidth=isHov?1.5:1; ctx.stroke();
+      ctx.beginPath();ctx.moveTo(a.sx,a.sy);ctx.lineTo(b.sx,b.sy);
+      ctx.strokeStyle=isHov?'rgba(168,85,247,.7)':'rgba(168,85,247,.12)';
+      ctx.lineWidth=isHov?1.5/zoom:.6/zoom;
+      ctx.stroke();
     });
+
     // Nodes
     gNodes.forEach(n=>{
+      const r=nodeR(n);
       const isHov=hovered&&hovered.id===n.id;
-      const r=isHov?20:14;
-      // glow
-      const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*2.5);
-      g.addColorStop(0,isHov?'rgba(168,85,247,.35)':'rgba(168,85,247,.12)');
-      g.addColorStop(1,'rgba(168,85,247,0)');
-      ctx.beginPath(); ctx.arc(n.x,n.y,r*2.5,0,Math.PI*2);
-      ctx.fillStyle=g; ctx.fill();
-      // circle
-      ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2);
-      ctx.fillStyle=n.id===activeNote?'rgba(168,85,247,.25)':'#131b2e';
-      ctx.strokeStyle=isHov?'#a855f7':'rgba(168,85,247,.4)';
-      ctx.lineWidth=isHov?2:1.5; ctx.fill(); ctx.stroke();
-      // label
-      ctx.fillStyle=isHov?'#e2e8f0':'#94a3b8';
-      ctx.font=(isHov?'bold ':'')+'10px Inter';
-      ctx.textAlign='center';
-      const label=n.id.length>18?n.id.slice(0,16)+'…':n.id;
-      ctx.fillText(label,n.x,n.y+r+12);
+      const isActive=n.id===activeNote;
+      if(isHov||isActive){
+        const g=ctx.createRadialGradient(n.sx,n.sy,0,n.sx,n.sy,r*3);
+        g.addColorStop(0,isActive?'rgba(168,85,247,.4)':'rgba(168,85,247,.25)');
+        g.addColorStop(1,'rgba(168,85,247,0)');
+        ctx.beginPath();ctx.arc(n.sx,n.sy,r*3,0,Math.PI*2);
+        ctx.fillStyle=g;ctx.fill();
+      }
+      ctx.beginPath();ctx.arc(n.sx,n.sy,r,0,Math.PI*2);
+      ctx.fillStyle=isActive?'rgba(168,85,247,.3)':'#131b2e';
+      ctx.strokeStyle=isHov||isActive?'#a855f7':'rgba(168,85,247,.35)';
+      ctx.lineWidth=(isHov?2:1)/zoom;
+      ctx.fill();ctx.stroke();
+
+      // Label only if zoomed in enough or hovered
+      if(zoom>0.6||isHov){
+        const fs=Math.max(8,Math.min(11,10/zoom));
+        ctx.fillStyle=isHov?'#e2e8f0':'#94a3b8';
+        ctx.font=(isHov?'bold ':'')+fs+'px Inter';
+        ctx.textAlign='center';
+        const label=n.id.length>20?n.id.slice(0,18)+'…':n.id;
+        ctx.fillText(label,n.sx,n.sy+r+fs+2);
+      }
     });
+
+    ctx.restore();
     gAnim=requestAnimationFrame(draw);
   }
   draw();
@@ -1304,8 +1164,7 @@ async function fetchVaultFromSupabase() {
     if (!res.ok) throw new Error('Fetch failed: ' + res.status);
     const rows = await res.json();
     if (!rows.length) {
-      loadDemo();
-      toast('Bienvenue, Développeur', 'ok');
+      toast('Bienvenue, Développeur — vault vide', 'ok');
       return;
     }
     notes = {};
@@ -1315,7 +1174,6 @@ async function fetchVaultFromSupabase() {
   } catch(e) {
     console.error(e);
     toast('Erreur de connexion au vault', 'err');
-    loadDemo();
   }
 }
 
@@ -1468,7 +1326,7 @@ const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 let notes = {};  // populated from Supabase on login
 let activeNote = null;
 let activeTagFilter = null;
-let kanban = lsGet('sv-kanban') || defKanban();
+let kanban = lsGet('sv-kanban') || {cols:[{id:'ideas',name:'💡 Idées',col:'#a78bfa',cards:[]},{id:'prog',name:'⚡ En cours',col:'#a855f7',cards:[]},{id:'review',name:'🔍 À tester',col:'#fbbf24',cards:[]},{id:'done',name:'✅ Terminé',col:'#4ade80',cards:[]}]};
 let dragId = null, dragFrom = null;
 let gNodes = [], gEdges = [], gAnim = null, gDragging = null;
 
@@ -1788,205 +1646,8 @@ document.addEventListener('click',e=>{
 });
 
 // ── DEMO NOTES ────────────────────────────────────────────────────
-function loadDemo(){
-  const demos={
-'Project Starfall - Overview':`---
-title: Project Starfall - Overview
-status: En développement
----
-
-# Project: Starfall
-
-Un jeu Roblox sci-fi avec une esthétique **Star Wars Battlefront II** et Jedi Survivor.
-
-## Vision
-
-Créer une expérience immersive avec des combats au sabre laser, des environnements holographiques et un lore riche autour de l'Ordre des Gardiens.
-
-## Liens
-
-- [[Systèmes de jeu]]
-- [[UI Design System]]
-- [[Lore & Factions]]
-- [[Audio - Lightsaber SFX]]
-
-## Progression globale
-
-- [x] Architecture de base
-- [x] UI holographique
-- [x] Système de RemoteEvents
-- [ ] Système de combat au sabre
-- [ ] Map principale : Station Orbitale Nexus
-- [ ] Animations de combat R15
-
-#starfall #roblox #gamedev #kanban`,
-
-'Systèmes de jeu':`---
-title: Systèmes de jeu
-status: En cours
----
-
-# Systèmes de jeu
-
-## DataStore
-
-Utilisation de snapshots pour éviter les \`SetAsync\` inutiles. Seule la différence est envoyée.
-
-\`\`\`lua
-local function save(player, data)
-  local key = "player_" .. player.UserId
-  DataStore:SetAsync(key, data)
-end
-\`\`\`
-
-## RemoteEvents
-
-Architecture client/serveur propre. Toujours valider côté serveur.
-
-> Ne jamais faire confiance au client — tout doit être validé serveur.
-
-## Système de combat
-
-- [ ] Détection de hit (hitbox R15)
-- [ ] VFX sabre laser
-- [ ] Cooldown et stamina
-
-## Liens
-
-- [[Project Starfall - Overview]]
-- [[UI Design System]]
-
-#starfall #luau #datastores #combat`,
-
-'UI Design System':`---
-title: UI Design System
-status: Défini
----
-
-# UI Design System
-
-Esthétique holographique sombre pour Project: Starfall.
-
-## Palette de couleurs
-
-- **Background** : \`#07090f\` — bleu nuit très profond
-- **Accent principal** : \`#a855f7\` — cyan holographique
-- **Cards** : \`#131b2e\`
-- **Texte secondaire** : \`#94a3b8\`
-
-## Typographie
-
-- Display : **Space Grotesk** (titres, logos)
-- Body : **Inter** (textes courants)
-- Code : **JetBrains Mono**
-
-## Composants
-
-- [x] Login screen
-- [x] HUD principal
-- [x] Icônes (54 générées)
-- [ ] Inventory panel
-- [ ] Map overlay holographique
-
-#starfall #ui #design`,
-
-'Lore & Factions':`---
-title: Lore & Factions
-status: En cours
----
-
-# Lore & Factions
-
-## L'univers
-
-Starfall se déroule dans un système stellaire en guerre froide entre trois factions après l'effondrement de l'Empire Solaris.
-
-## Factions
-
-### Les Gardiens de la Lumière
-Anciens protecteurs de l'Empire. Utilisent des sabres à lame cyan.
-
-### L'Ordre Écarlate
-Dissidents rebelles. Lames rouges, esthétique industrielle.
-
-### Les Marchands du Vide
-Neutres, intéressés. Accès à toutes les technologies.
-
-## Planètes
-
-- **Nexus Station** — station orbitale, zone de départ
-- **Ashenveil** — planète couverte de forêts cristallines
-- **Korrath** — désert de métal
-
-## Liens
-
-- [[Project Starfall - Overview]]
-
-#starfall #lore #worldbuilding`,
-
-'Audio - Lightsaber SFX':`---
-title: Audio - Lightsaber SFX
-status: Organisé
----
-
-# Audio - Lightsaber SFX
-
-## Catégories
-
-### Idle / Hum
-Sons continus pendant que le sabre est actif.
-- hum_low_01.mp3 → Gardiens
-- hum_high_02.mp3 → Ordre Écarlate
-
-### Swing
-- swing_fast_01.mp3
-- swing_slow_02.mp3
-
-### Clash
-Sons de collision entre sabres.
-- clash_heavy_01.mp3
-- clash_light_02.mp3
-
-### Activation / Désactivation
-- ignite_01.mp3
-- extinguish_01.mp3
-
-## Notes d'implémentation
-
-\`\`\`lua
-local SFX = game.SoundService
--- Jouer le son d'activation
-local function igniteSaber(player)
-  SFX:PlayLocalSound(Assets.Sounds.ignite_01)
-end
-\`\`\`
-
-#starfall #audio #assets`,
-  };
-  Object.entries(demos).forEach(([n,c])=>{notes[n]=parseNote(n,c);});
-  renderSidebar();
-  buildGraph();
-}
 
 // ── KANBAN ────────────────────────────────────────────────────────
-function defKanban(){return{cols:[
-  {id:'ideas',name:'💡 Idées',col:'#a78bfa',cards:[
-    {id:'c1',title:'Système de sabre laser',desc:'Hit detection + VFX holographiques',tags:['combat','vfx']},
-    {id:'c2',title:'Map : Station Orbitale Nexus',desc:'Layout + liste d\'assets',tags:['map','design']},
-    {id:'c3',title:'Animations combat R15',desc:'Mixamo → Roblox workflow',tags:['animation']},
-  ]},
-  {id:'prog',name:'⚡ En cours',col:'#c084fc',cards:[
-    {id:'c4',title:'UI HUD principal',desc:'Health, stamina, minimap',tags:['ui']},
-    {id:'c5',title:'DataStore refactor',desc:'Migration vers snapshot pattern',tags:['luau']},
-  ]},
-  {id:'review',name:'🔍 À tester',col:'#fbbf24',cards:[
-    {id:'c6',title:'Login screen',desc:'Test sur mobile Roblox',tags:['ui','mobile']},
-  ]},
-  {id:'done',name:'✅ Terminé',col:'#4ade80',cards:[
-    {id:'c7',title:'Architecture RemoteEvents',desc:'Client/server validé',tags:['luau']},
-    {id:'c8',title:'Icon set holographique',desc:'54 icônes générées',tags:['assets','ui']},
-  ]},
-]};}
 
 function lsGet(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}}
 function lsSave(){localStorage.setItem('sv-kanban',JSON.stringify(kanban));}
