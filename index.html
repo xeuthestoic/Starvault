@@ -399,7 +399,10 @@ mark{background:rgba(168,85,247,.25);color:var(--cyan);border-radius:2px;padding
       <div class="vsidebar" id="vsidebar">
         <div class="vsh">
           <span class="vsh-title">Notes</span>
-          <span class="vsh-count" id="note-count">0</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="vsh-count" id="note-count">0</span>
+            <button onclick="clearVault()" title="Effacer le vault" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;transition:.15s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">🗑</button>
+          </div>
         </div>
         <div class="tag-bar" id="tag-bar"></div>
         <label class="upzone" id="upzone-label">
@@ -474,9 +477,11 @@ mark{background:rgba(168,85,247,.25);color:var(--cyan);border-radius:2px;padding
 // CONFIG — remplace par le hash SHA-256 de ton mot de passe
 // Démo : mot de passe = demo1234
 const PWD_HASH = "876d2142479b50064406138ac655b06813dc3f7b27e5823e8c195352ad639c93";
+const SUPA_URL = "https://fpccxtsglwxzplupedbq.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwY2N4dHNnbHd4enBsdXBlZGJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEwODUsImV4cCI6MjA5NjY4NzA4NX0.pPdeGUkqJlQlvwFPillTXgy3jkphc_lhqBdfpJdDxAg";
 // ══════════════════════════════════════════════════════════════════
 
-let notes = {};          // { name: { name, raw, fm, body, tags, links } }
+let notes = {};  // populated from Supabase on login
 let activeNote = null;
 let activeTagFilter = null;
 let kanban = lsGet('sv-kanban') || defKanban();
@@ -491,7 +496,9 @@ async function doLogin(){
   if(h===PWD_HASH){
     document.getElementById('login').style.display='none';
     document.getElementById('app').classList.add('on');
-    loadDemo(); renderKanban(); toast('Bienvenue, Développeur','ok');
+    renderKanban();
+    toast('Chargement du vault…', 'info');
+    fetchVaultFromSupabase();
   } else {
     const e=document.getElementById('lerr');
     e.innerHTML='⚠ Mot de passe incorrect';
@@ -504,6 +511,22 @@ function doLogout(){
   document.getElementById('login').style.display='flex';
   document.getElementById('app').classList.remove('on');
   document.getElementById('linput').value='';
+}
+
+async function clearVault(){
+  if(!confirm('Effacer tout le vault ? Les notes seront supprimées pour tous les utilisateurs.')) return;
+  // Delete all from Supabase
+  await fetch(`${SUPA_URL}/rest/v1/notes?name=neq.null`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+  });
+  notes = {};
+  activeNote = null;
+  document.getElementById('nv-empty').style.display='flex';
+  document.getElementById('nv-content').style.display='none';
+  if(document.getElementById('mobile-back')) document.getElementById('mobile-back').style.display='none';
+  renderSidebar(); buildGraph();
+  toast('Vault effacé pour tous', 'info');
 }
 
 // ── VIEWS ─────────────────────────────────────────────────────────
@@ -530,7 +553,8 @@ async function loadZip(ev){
       notes[name] = parseNote(name, content);
     });
     renderSidebar(); buildGraph();
-    toast(`${mdFiles.length} note${mdFiles.length>1?'s':''} importée${mdFiles.length>1?'s':''}  !`, 'ok');
+    toast(`${mdFiles.length} note${mdFiles.length>1?'s':''} extraite${mdFiles.length>1?'s':''}, envoi vers Supabase…`, 'info');
+    await saveVaultToSupabase();
   } catch(e) {
     console.error(e);
     toast('Erreur lors de la lecture du zip','err');
@@ -1270,6 +1294,61 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(mns)mns.style.display='';
 });
 
+
+// ── SUPABASE ──────────────────────────────────────────────────────
+async function fetchVaultFromSupabase() {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/notes?select=name,raw`, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+    });
+    if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+    const rows = await res.json();
+    if (!rows.length) {
+      loadDemo();
+      toast('Bienvenue, Développeur', 'ok');
+      return;
+    }
+    notes = {};
+    rows.forEach(r => { notes[r.name] = parseNote(r.name, r.raw); });
+    renderSidebar(); buildGraph();
+    toast(`Vault chargé — ${rows.length} note${rows.length>1?'s':''}`, 'ok');
+  } catch(e) {
+    console.error(e);
+    toast('Erreur de connexion au vault', 'err');
+    loadDemo();
+  }
+}
+
+async function saveVaultToSupabase() {
+  try {
+    // Upsert all notes (insert or update)
+    const rows = Object.values(notes).map(n => ({ name: n.name, raw: n.raw }));
+    // Supabase upsert in batches of 50
+    const batchSize = 50;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      const res = await fetch(`${SUPA_URL}/rest/v1/notes`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(batch)
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+    }
+    toast(`${rows.length} note${rows.length>1?'s':''} sauvegardée${rows.length>1?'s':''} !`, 'ok');
+  } catch(e) {
+    console.error(e);
+    toast('Erreur lors de la sauvegarde', 'err');
+  }
+}
+
 </script>
 </body>
 </html>
@@ -1304,7 +1383,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       <div class="vsidebar">
         <div class="vsh">
           <span class="vsh-title">Notes</span>
-          <span class="vsh-count" id="note-count">0</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="vsh-count" id="note-count">0</span>
+            <button onclick="clearVault()" title="Effacer le vault" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px;transition:.15s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">🗑</button>
+          </div>
         </div>
         <div class="tag-bar" id="tag-bar"></div>
         <label class="upzone" id="upzone-label">
@@ -1379,9 +1461,11 @@ document.addEventListener('DOMContentLoaded',()=>{
 // CONFIG — remplace par le hash SHA-256 de ton mot de passe
 // Démo : mot de passe = demo1234
 const PWD_HASH = "876d2142479b50064406138ac655b06813dc3f7b27e5823e8c195352ad639c93";
+const SUPA_URL = "https://fpccxtsglwxzplupedbq.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwY2N4dHNnbHd4enBsdXBlZGJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMTEwODUsImV4cCI6MjA5NjY4NzA4NX0.pPdeGUkqJlQlvwFPillTXgy3jkphc_lhqBdfpJdDxAg";
 // ══════════════════════════════════════════════════════════════════
 
-let notes = {};          // { name: { name, raw, fm, body, tags, links } }
+let notes = {};  // populated from Supabase on login
 let activeNote = null;
 let activeTagFilter = null;
 let kanban = lsGet('sv-kanban') || defKanban();
@@ -1396,7 +1480,9 @@ async function doLogin(){
   if(h===PWD_HASH){
     document.getElementById('login').style.display='none';
     document.getElementById('app').classList.add('on');
-    loadDemo(); renderKanban(); toast('Bienvenue, Développeur','ok');
+    renderKanban();
+    toast('Chargement du vault…', 'info');
+    fetchVaultFromSupabase();
   } else {
     const e=document.getElementById('lerr');
     e.innerHTML='⚠ Mot de passe incorrect';
@@ -1409,6 +1495,22 @@ function doLogout(){
   document.getElementById('login').style.display='flex';
   document.getElementById('app').classList.remove('on');
   document.getElementById('linput').value='';
+}
+
+async function clearVault(){
+  if(!confirm('Effacer tout le vault ? Les notes seront supprimées pour tous les utilisateurs.')) return;
+  // Delete all from Supabase
+  await fetch(`${SUPA_URL}/rest/v1/notes?name=neq.null`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+  });
+  notes = {};
+  activeNote = null;
+  document.getElementById('nv-empty').style.display='flex';
+  document.getElementById('nv-content').style.display='none';
+  if(document.getElementById('mobile-back')) document.getElementById('mobile-back').style.display='none';
+  renderSidebar(); buildGraph();
+  toast('Vault effacé pour tous', 'info');
 }
 
 // ── VIEWS ─────────────────────────────────────────────────────────
@@ -1435,7 +1537,8 @@ async function loadZip(ev){
       notes[name] = parseNote(name, content);
     });
     renderSidebar(); buildGraph();
-    toast(`${mdFiles.length} note${mdFiles.length>1?'s':''} importée${mdFiles.length>1?'s':''}  !`, 'ok');
+    toast(`${mdFiles.length} note${mdFiles.length>1?'s':''} extraite${mdFiles.length>1?'s':''}, envoi vers Supabase…`, 'info');
+    await saveVaultToSupabase();
   } catch(e) {
     console.error(e);
     toast('Erreur lors de la lecture du zip','err');
@@ -2125,4 +2228,3 @@ function toast(msg,type='info'){
 </script>
 </body>
 </html>
-
